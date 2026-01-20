@@ -1,14 +1,14 @@
 import inspect
+from abc import ABC
 from typing import Callable
 
-from utils import clear_screen
+from utils import async_input, async_print, clear_screen
 
-# TODO no output does not clear previous output
-# TODO dynamic next-menu-precommand (m3 -> m .. 3)
+# TODO no output does not clear previous output ?
+# TODO dynamic command cascades (cool) (m3 -> m .. 3)
 
 
-class AsyncMenu:
-    # TODO duplicate keys in submenus, q
+class BaseMenu(ABC):
     def __init__(
         self,
         name: str,
@@ -21,26 +21,34 @@ class AsyncMenu:
         self.initial_output = initial_output
         self.actions = {s[0]: actions[s] for s in actions}
         # TODO: action string as list
-        self.action_string = (
+        self.prompt = (
             ("(q)uit, " + ", ".join(f"({s[0]}){s[1:]}" for s in actions) + ": ")
             if action_string == ""
             else "(q)uit, " + action_string + ": "
         )
         self.path = name
+        self.output = self.initial_output
 
     def _set_path(self, path: str):
         self.path = path + " > " + self.path
 
-    async def loop(self) -> None:
-        output = self.initial_output
+    def _render_menu(self) -> str:
+        clear_screen()
+        screen = "-" * 8 + "\n"
+        screen += self.output + "\n"
+        screen += ("-" * 8) + "\n"
+        screen += self.path + "\n"
 
+        self.output = ""
+
+        return screen
+
+
+class AsyncMenu(BaseMenu):
+    async def loop(self) -> None:
         while True:
-            clear_screen()
-            print("-" * 8)
-            print(output)
-            print("-" * 8)
-            print(self.path)
-            cmd = input(self.action_string)
+            await async_print(self._render_menu())
+            cmd = await async_input(self.prompt)
             if cmd == "q":
                 break
             try:
@@ -59,68 +67,45 @@ class AsyncMenu:
                     result.loop()
 
                 elif isinstance(result, str):
-                    output = result
+                    self.output = result
 
                 if self.is_single:
                     break
 
             except KeyError:
-                output = f"'{cmd}' does not specify an action"
-        clear_screen()
+                self.output = f"'{cmd}' does not specify an action"
 
 
-class Menu:
-    # TODO dubplicate keys in submenus
-    def __init__(
-        self,
-        name: str,
-        actions: dict[str, Callable],
-        is_single: bool = False,
-        initial_output: str = "",
-        action_string: str = "",
-    ):
-        self.is_single = is_single
-        self.initial_output = initial_output
-        self.actions = {s[0]: actions[s] for s in actions}
-        self.action_string = (
-            ("(q)uit, " + ", ".join(f"({s[0]}){s[1:]}" for s in actions) + ": ")
-            if action_string == ""
-            else "(q)uit, " + action_string + ": "
-        )
-        self.path = name
-
-    def _set_path(self, path: str):
-        self.path = path + " > " + self.path
-
+class Menu(BaseMenu):
     def loop(self) -> None:
-        output = self.initial_output
+        self.output = self.initial_output
 
         while True:
-            clear_screen()
-            print("-" * 8)
-            print(output)
-            print("-" * 8)
-            print(self.path)
-            cmd = input(self.action_string)
+            print(self._render_menu())
+            cmd = input(self.prompt)
             if cmd == "q":
                 break
             try:
                 action = self.actions[cmd]
                 result = action()
+                if isinstance(result, AsyncMenu):
+                    raise Exception("cannot use AsyncMenu within Menu, only otherwise")
+
                 if isinstance(result, Menu):
                     result._set_path(self.path)
                     result.loop()
+
                 elif isinstance(result, str):
-                    output = result
+                    self.output = result
 
                 if self.is_single:
                     break
 
             except KeyError:
-                output = f"'{cmd}' does not specify an action"
-        clear_screen()
+                self.output = f"'{cmd}' does not specify an action"
 
 
+# Tests
 async def async_main():
     def with_context() -> Menu:
         x = 10

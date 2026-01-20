@@ -9,7 +9,6 @@ from data_collector import (
     deserialize_imu7_packet,
     deserialize_imu8_packet,
     ecg_header_string,
-    get_random_string,
     imu_header_string,
     write_to_file,
     write_to_file_binary,
@@ -59,12 +58,7 @@ def get_movesense_firmware_version(device: bleak.BleakClient) -> int | None:
 
         if characteristics[0].uuid == ecg_voltage_8_uuid_128:
             return 8
-        # TODO remove explicit prints
-        print(
-            "invalid firmware version detected: activity service exists but with unexpected characteristics"
-        )
         return None
-    print("invalid firmware version detected: activity service does not exist")
     return None
 
 
@@ -258,14 +252,15 @@ def choose_device_menu(devices: list) -> int | None:
 
     idx = 0
 
-    def choose(i):
+    def index_setter(i):
         nonlocal idx
         idx = i
 
     Menu(
         name="choose device",
-        actions={str(i): lambda: choose(i) for i in range(len(devices))},
-        action_string="\n".join(f"({i}) {devices[i].name}" for i in range(len(devices)))
+        actions={str(i): lambda: index_setter(i) for i in range(len(devices))},
+        action_string="\n"
+        + "\n".join(f"({i}) {devices[i].name}" for i in range(len(devices)))
         + f"\n\nenter device index [0..{len(devices)}]",
         is_single=True,
     ).loop()
@@ -300,6 +295,7 @@ async def disconnect_from(device: bleak.BleakClient) -> bool:
 
 
 async def main_async() -> None:
+    # Scanning and connection process
     devices = await ble_scan()
     if devices is None:
         print("error: no scan results")
@@ -308,14 +304,21 @@ async def main_async() -> None:
     dev_id = choose_device_menu(devices)
 
     if dev_id is None:
+        print("device id is invalid")
         return
 
     device = bleak.BleakClient(devices[dev_id])
+
+    if device.name is None:
+        print("error on reading device name")
+        return
+
     print(f"connecting to {device.name}")
     if not await connect_to(device):
         print(f"error connecting to {device.name}")
         return
 
+    # Device Interaction
     async def choose_movesense_menu():
         firmwave_version = get_movesense_firmware_version(device)
         if firmwave_version == 8:

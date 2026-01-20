@@ -1,6 +1,17 @@
+import asyncio
 import os
+import sys
 
-import bleak.uuids
+
+async def async_print(text: str) -> None:
+    loop = asyncio.get_running_loop()
+    sys.stdout.write(text)
+    await loop.run_in_executor(None, sys.stdout.flush)
+
+
+async def async_input(prompt: str) -> str:
+    await async_print(prompt)
+    return (await asyncio.to_thread(sys.stdin.readline))[:-1]
 
 
 def clear_screen() -> str:
