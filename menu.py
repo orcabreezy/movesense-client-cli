@@ -4,6 +4,7 @@ from typing import Callable
 from utils import clear_screen
 
 # TODO no output does not clear previous output
+# TODO dynamic next-menu-precommand (m3 -> m .. 3)
 
 
 class AsyncMenu:

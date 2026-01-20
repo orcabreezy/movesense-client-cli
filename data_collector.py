@@ -47,6 +47,17 @@ def write_to_file(
         file.write(file_content)
 
 
+def write_to_file_binary(
+    file_content: list[bytearray], extension: str, subfolder: str, name: str = ""
+) -> None:
+    if name == "":
+        name = get_random_string()
+    name = f"./{subfolder}/{name}.{extension}"
+    with open(name, "wb") as file:
+        for b in file_content:
+            file.write(b)
+
+
 ecg_header_string = "timestamp, ecg_voltage"
 imu_header_string = (
     "timestamp, acc_x, acc_y, acc_z, gyr_x, gyr_y, gyr_z, mag_x, mag_y, mag_z"

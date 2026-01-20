@@ -1,3 +1,4 @@
+import asyncio
 import time
 from dataclasses import dataclass
 
@@ -16,59 +17,39 @@ class MovesenseConfigField:
 
         self.device = device
         self.char = char_uuid
-        self.synched_time = 0
+        self.synced_time = 0
 
     async def initialize(self):
         bytes: bytearray = await self.device.read_gatt_char(self.char)
 
-        self.ecg_interval = bytes[0]
-        self.imu_interval = bool(bytes[1])
+        self.ecg_interval = int(bytes[0])
+        self.imu_interval = int(bytes[1])
         self.ecg_recording_mode = bool(bytes[2])
         self.imu_recording_mode = bool(bytes[3])
         self.recording_state = bool(bytes[4])
         self.transfer_operation = bool(bytes[5])
         self.delete_operation = bool(bytes[6])
-        self.synched_time = int.from_bytes(bytes[7:], "little")
+        self.synced_time = int.from_bytes(bytes[8:], "little")
 
-    async def _compare_check(self) -> None:
-        bytes: bytearray = await self.device.read_gatt_char(self.char)
-
-        error_vector = [
-            self.ecg_interval == bytes[0],
-            self.imu_interval == bool(bytes[1]),
-            self.ecg_recording_mode == bool(bytes[2]),
-            self.imu_recording_mode == bool(bytes[3]),
-            self.recording_state == bool(bytes[4]),
-            self.transfer_operation == bool(bytes[5]),
-            self.delete_operation == bool(bytes[6]),
-            self.synched_time == int.from_bytes(bytes[7:], "little"),
-        ]
-        if False in error_vector:
-            raise AssertionError(
-                f"compare check not successful: {error_vector}, excpected: {self.__str__()} got: {bytes}"
-            )
-
+    # TODO prettify
     def __str__(self) -> str:
         return str(self._build_bytes())
 
-    def _build_bytes(self) -> bytes:
-        cfg_field = (
-            self.ecg_interval.to_bytes(1)
-            + self.imu_interval.to_bytes(1)
-            + self.ecg_recording_mode.to_bytes(1)
-            + self.imu_recording_mode.to_bytes(1)
-            + self.recording_state.to_bytes(1)
-            + self.transfer_operation.to_bytes(1)
-            + self.delete_operation.to_bytes(1)
-            + (0).to_bytes(1)
-            + self.synched_time.to_bytes(8, "little")
-        )
+    def _build_bytes(self) -> bytearray:
+        cfg_field = bytearray(b"\x00" * 16)
+        cfg_field[0] = self.ecg_interval
+        cfg_field[1] = self.imu_interval
+        cfg_field[2] = self.ecg_recording_mode
+        cfg_field[3] = self.imu_recording_mode
+        cfg_field[4] = self.recording_state
+        cfg_field[5] = self.transfer_operation
+        cfg_field[6] = self.delete_operation
+        cfg_field[8:] = self.synced_time.to_bytes(8, "little")
 
         return cfg_field
 
     async def _send(self):
-        await self.device.write_gatt_char(self.char, self._build_bytes())
-        await self._compare_check()
+        await self.device.write_gatt_char(self.char, data=self._build_bytes())
 
     def is_recording_now(self) -> bool:
         return self.recording_state
@@ -107,5 +88,5 @@ class MovesenseConfigField:
         self.delete_opertaion = False
 
     async def synchronize_now(self):
-        self.synched_time = int(time.time() * 1e6)
+        self.synced_time = int(time.time() * 1e6)
         await self._send()

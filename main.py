@@ -9,8 +9,10 @@ from data_collector import (
     deserialize_imu7_packet,
     deserialize_imu8_packet,
     ecg_header_string,
+    get_random_string,
     imu_header_string,
     write_to_file,
+    write_to_file_binary,
 )
 from definitions import (
     activity_svc_uuid_128,
@@ -105,33 +107,55 @@ async def movesense_control_menu_v8(device: bleak.BleakClient) -> AsyncMenu:
         await config_field.start_recording()
         return "local recording started"
 
+    def config_field_updater(ecg, imu):
+        async def function():
+            await config_field.update_recording_mode(ecg, imu)
+
+        return function
+
     def edit_recording_config():
         return AsyncMenu(
             name="configure recording mode",
             action_string="(0) nothing, (1) ecg-only, (2) imu-only, (3) both",
             actions={
-                "0": lambda: config_field.update_recording_mode(False, False),
-                "1": lambda: config_field.update_recording_mode(True, False),
-                "2": lambda: config_field.update_recording_mode(False, True),
-                "3": lambda: config_field.update_recording_mode(True, True),
+                "0": config_field_updater(False, False),
+                "1": config_field_updater(True, False),
+                "2": config_field_updater(False, True),
+                "3": config_field_updater(True, True),
             },
             is_single=True,
         )
 
     async def start_datatransfer():
-        # TODO. receive data transfer on client side
+        binary_data = []
+        await device.start_notify(
+            recorded_data, callback=lambda _, b: binary_data.append(b)
+        )
         await config_field.transfer_data_now()
-        pass
+
+        while True:
+            await asyncio.sleep(0.5)
+            await config_field.initialize()
+            if not config_field.transfer_operation:
+                break
+            # Time indicator
+
+        write_to_file_binary(binary_data, extension="bin", subfolder="data")
+        await device.stop_notify(recorded_data)
 
     async def delete_data():
         await config_field.delete_data_now()
 
+    async def refresh() -> str:
+        await config_field.initialize()
+        return str(config_field)
+
     return AsyncMenu(
         name="movesense controls (v0.8.0)",
         actions={
-            "get config": config_printer,
+            "get config": refresh,
             "sync time": sync_time,
-            "toggle recording": toggle_recording,
+            "recording toggle": toggle_recording,
             "ecg": toggle_menu_generator(ecg_writer, "ecg"),
             "imu": toggle_menu_generator(imu_writer, "imu"),
             "modify recording configuration": edit_recording_config,
