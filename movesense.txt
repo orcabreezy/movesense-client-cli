@@ -1,0 +1,37 @@
+# Definitions for the Movesense Offline Activity Service:
+ActivityServiceUUID: 0x1859
+- ecg_voltage     : 0x2BF1
+- imu_meas        : 0x2BF2
+- configuration   : 0x2BF3
+- recorded_data   : 0x2BF4
+
+# Definitions for Movesense Activity Service:
+ActivityServiceUUID: 0x1859
+- ecg_voltage     : 0x2BDD
+- ecg_interval    : 0x2BE3
+- imu_meas        : 0x2BE2
+- imu_interval    : 0x2BE4
+
+# Definitions HR Service
+ServiceUUID: 0x180D
+
+
+
+
+
+# TODOS
+- maybe graphical data representation
+
+
+# Menu Structure
+
+Movesense Flash > Movesense Specific Functions (v0.7.0) > Modify Interval > ECG-Interval
+----------------------------------
+action: set interval             |
+----------------------------------
+output:                          |
+----------------------------------
+                                 |
+----------------------------------
+available_actions
+(q)uit, set interval [2, 4, 8, 10]:
