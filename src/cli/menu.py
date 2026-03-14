@@ -2,10 +2,11 @@ import inspect
 from abc import ABC
 from typing import Callable
 
-from utils import async_input, async_print, clear_screen
+from ..common.utils import async_input, async_print, clear_screen
 
 # TODO no output does not clear previous output ?
 # TODO dynamic command cascades (cool) (m3 -> m .. 3)
+# TODO global context panels
 
 
 class BaseMenu(ABC):
@@ -51,29 +52,53 @@ class AsyncMenu(BaseMenu):
             cmd = await async_input(self.prompt)
             if cmd == "q":
                 break
-            try:
-                action = self.actions[cmd]
-                # TODO: async processing indicator
-                result = (
-                    await action() if inspect.iscoroutinefunction(action) else action()
-                )
 
-                if isinstance(result, AsyncMenu):
-                    result._set_path(self.path)
-                    await result.loop()
+            if len(cmd) > 1 and cmd[1] == ":":
+                # TODO: refine case
+                try:
+                    parts = cmd.split(":")
+                    action = self.actions[parts[0]]
+                    argument = parts[1]
 
-                if isinstance(result, Menu):
-                    result._set_path(self.path)
-                    result.loop()
+                    result = (
+                        await action(argument)
+                        if inspect.iscoroutinefunction(action)
+                        else action(argument)
+                    )
+                    if isinstance(result, str):
+                        self.output = result
 
-                elif isinstance(result, str):
-                    self.output = result
+                    if self.is_single:
+                        break
+                except KeyError, TypeError:
+                    self.output = f"error on running parameterized action {cmd}"
 
-                if self.is_single:
-                    break
+            else:
+                try:
+                    action = self.actions[cmd]
+                    # TODO: async processing indicator
+                    result = (
+                        await action()
+                        if inspect.iscoroutinefunction(action)
+                        else action()
+                    )
 
-            except KeyError:
-                self.output = f"'{cmd}' does not specify an action"
+                    if isinstance(result, AsyncMenu):
+                        result._set_path(self.path)
+                        await result.loop()
+
+                    if isinstance(result, Menu):
+                        result._set_path(self.path)
+                        result.loop()
+
+                    elif isinstance(result, str):
+                        self.output = result
+
+                    if self.is_single:
+                        break
+
+                except KeyError:
+                    self.output = f"'{cmd}' does not specify an action"
 
 
 class Menu(BaseMenu):

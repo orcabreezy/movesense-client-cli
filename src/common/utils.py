@@ -28,8 +28,26 @@ def parse_uint16(bytes) -> int:
 
 
 def get_svc_by_uuid(dev: bleak.BleakClient, uuid):
-    return list(filter(lambda svc: svc.uuid == uuid, dev.services))[0]
+    services = list(filter(lambda svc: svc.uuid == uuid, dev.services))
+    if services:
+        return services[0]
+    return None
 
 
 def get_char_by_uuid(svc, uuid):
-    return list(filter(lambda char: char.uuid == uuid, svc.characteristics))[0]
+    characteristics = list(filter(lambda char: char.uuid == uuid, svc.characteristics))
+    if characteristics:
+        return characteristics[0]
+    return None
+
+
+class BinaryAggregator:
+    def __init__(self):
+        self.data = []
+
+    def aggregate(self, binary_data):
+        self.data += binary_data
+
+    def conclude(self):
+        return self.data
+        self.data = []
