@@ -72,7 +72,9 @@ def get_movesense_firmware_version(device: bleak.BleakClient) -> int | None:
     return None
 
 
-async def movesense_control_menu_v8(device: bleak.BleakClient) -> AsyncMenu | str:
+async def movesense_control_menu_v8(
+    device: bleak.BleakClient, calls_on_disconnect=[]
+) -> AsyncMenu | str:
     activity_service = get_svc_by_uuid(device, ACTIVITY_SVC_UUID_128)
     if not activity_service:
         return "Error: Activity service not found for v8 device."
@@ -96,10 +98,7 @@ async def movesense_control_menu_v8(device: bleak.BleakClient) -> AsyncMenu | st
     async def start_datatransfer():
 
         async def consume_recorded_data(_, binstring):
-            if binstring[0] != 0xFF:
-                binary_data.append(binstring)
-                return
-            await async_print(str(binstring[1:]) + "\n")
+            binary_data.append(binstring)
 
         await device.start_notify(recorded_data, callback=consume_recorded_data)
         binary_data = []
@@ -121,12 +120,14 @@ async def movesense_control_menu_v8(device: bleak.BleakClient) -> AsyncMenu | st
         char_uuid=ecg_voltage.uuid,
         deserializer=deserialize_ecg8_packet,
         header=ecg_header_string,
+        calls_on_disconnect=calls_on_disconnect,
     )
     imu_writer = BluetoothDataCollector(
         device=device,
         char_uuid=imu_meas.uuid,
         deserializer=deserialize_imu8_packet,
         header=imu_header_string,
+        calls_on_disconnect=calls_on_disconnect,
     )
 
     async def config_printer() -> str:
@@ -262,12 +263,14 @@ async def movesense_control_menu_v7(device: bleak.BleakClient) -> AsyncMenu | st
         char_uuid=ecg_voltage.uuid,
         deserializer=deserialize_ecg7_packet,
         header=ecg_header_string,
+        calls_on_disconnect=calls_on_sudden_disconnect,
     )
     imu_writer = BluetoothDataCollector(
         device=device,
         char_uuid=imu_meas.uuid,
         deserializer=deserialize_imu7_packet,
         header=imu_header_string,
+        calls_on_disconnect=calls_on_sudden_disconnect,
     )
     hr_writer = None
 
@@ -361,9 +364,17 @@ async def ble_scan(scan_duration: int = 5) -> list:
 
 async def main_async() -> None:
     # Scanning and connection process
+    subscriptionManagement = {}
+    calls_on_sudden_disconnect = []
+
+    # callback, that goes through all registered callbacks
+    # in 'calls_on_sudden_disconnect'
+    def on_disconnect(device: bleak.BleakClient):
+        for f in calls_on_sudden_disconnect:
+            f()
 
     while True:
-        devices = [bleak.BleakClient(dev) for dev in await ble_scan(2)]
+        devices = [dev for dev in await ble_scan(2)]
         if devices is None:
             print("error: no scan results")
             return
@@ -376,8 +387,8 @@ async def main_async() -> None:
             continue
         else:
             break
-    device = devices[dev_id]
-    print(dev_id)
+
+    device = bleak.BleakClient(devices[dev_id], disconnected_callback=on_disconnect)
     client = MovesenseClient(device)
 
     print(f"connecting to {device.name} which was {devices[dev_id]}")
@@ -389,7 +400,9 @@ async def main_async() -> None:
     async def choose_movesense_menu():
         firmwave_version = get_movesense_firmware_version(client.device)
         if firmwave_version == 8:
-            return await movesense_control_menu_v8(client.device)
+            return await movesense_control_menu_v8(
+                client.device, calls_on_sudden_disconnect
+            )
         elif firmwave_version == 7:
             return await movesense_control_menu_v7(client.device)
 
@@ -493,20 +506,18 @@ async def main_async() -> None:
         actions={
             "list device attributes": lambda: list_device_services(client.device),
             "movesense control": choose_movesense_menu,
-            "gsp menu": gsp_menu,
             "service action": service_action,
         },
     ).loop()
 
     print(f"disconnecting from {device.name}")
+    # clear calls, as the following disconnect is not accidental
+    calls_on_sudden_disconnect.clear()
     if not await client.disconnect():
         print(f"error disconneting from {device.name}, terminating now")
 
     print("disconnect successful - program finished")
     return
-
-
-subscriptionManagement = {}
 
 
 def main() -> None:
