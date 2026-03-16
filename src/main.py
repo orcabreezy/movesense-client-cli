@@ -395,66 +395,6 @@ async def main_async() -> None:
 
         return f"device is not Movesense, fv: {firmwave_version}"
 
-    async def gsp_menu():
-
-        gsp_service_uuid = "34802252-7185-4d5d-b431-630e7050e8f0"
-        gsp_send_uuid = "34800001-7185-4d5d-b431-630e7050e8f0"
-        gsp_rcv_uuid = "34800002-7185-4d5d-b431-630e7050e8f0"
-
-        async def hello_echo() -> str:
-            try:
-                da = BinaryAggregator()
-                await device.start_notify(
-                    gsp_rcv_uuid, lambda _, data: da.aggregate(data)
-                )
-                await device.write_gatt_char(gsp_send_uuid, b"\x00\x06")
-
-                await asyncio.sleep(0.25)
-                data = da.conclude()
-                await device.stop_notify(gsp_rcv_uuid)
-
-                return str(data)
-
-            except BleakCharacteristicNotFoundError:
-                return "Device does not provice GSP service"
-
-        async def get_peers() -> str:
-            da = BinaryAggregator()
-            await device.start_notify(gsp_rcv_uuid, lambda _, data: da.aggregate(data))
-            # GET on /Comm/Ble/Peers
-            await device.write_gatt_char(
-                gsp_send_uuid,
-                bytearray([1, 100]) + bytearray("/Meas/ECG/13", "utf-8"),
-                response=True,
-            )
-            await asyncio.sleep(0.25)
-            # Response of type 'PeerList' (array of 'PeerEntry')
-            data = da.conclude()
-            await device.stop_notify(gsp_rcv_uuid)
-            return str(data)
-
-        async def get_params() -> str:
-            da = BinaryAggregator()
-            await device.start_notify(gsp_rcv_uuid, lambda _, data: da.aggregate(data))
-            # GET on /Comm/Ble/Peers/{ConnHandle}/Params
-            await device.write_gatt_char(
-                gsp_send_uuid, b"\x04\x09/Comm/Ble/Peers/0/Params"
-            )
-            await asyncio.sleep(0.25)
-            await device.stop_notify(gsp_rcv_uuid)
-            # Response of type 'ConnParams'
-            data = da.conclude()
-            return str(data)
-
-        return AsyncMenu(
-            name="GSP Menu",
-            actions={
-                "send hello echo": hello_echo,
-                "0 get peers": get_peers,
-                "1 get params": get_params,
-            },
-        )
-
     async def service_action():
         def characteristic_menu(service):
             characteristics = service.characteristics
