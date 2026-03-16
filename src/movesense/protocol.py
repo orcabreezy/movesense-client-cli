@@ -9,7 +9,7 @@ def deserialize_ecg7_packet(packet, interval=4):
 
 
 def deserialize_ecg8_packet(packet, interval=4):
-    return deserialize_ecg_packet(packet, 8, interval)
+    return deserialize_ecg_packet(packet, 8, interval, is_microseconds=True)
 
 
 def deserialize_imu7_packet(packet, interval=20):
@@ -17,14 +17,17 @@ def deserialize_imu7_packet(packet, interval=20):
 
 
 def deserialize_imu8_packet(packet, interval=20):
-    return deserialize_imu_packet(packet, 8, interval)
+    return deserialize_imu_packet(packet, 8, interval, is_microseconds=True)
 
 
 # TODO remove hard code
 def deserialize_ecg_packet(
-    packet: bytes, timestamp_size: int, interval: int = 4
+    packet: bytes, timestamp_size: int, interval: int = 4, is_microseconds: bool = False
 ) -> str:
     timestamp = int.from_bytes(packet[:timestamp_size], "little")
+    if is_microseconds:
+        timestamp //= 1000
+
     packet = packet[timestamp_size:]
     values = []
     for i in range(16):
@@ -38,9 +41,14 @@ def deserialize_ecg_packet(
 
 # TODO remove hard code
 def deserialize_imu_packet(
-    packet: bytes, timestamp_size: int, interval: int = 20
+    packet: bytes,
+    timestamp_size: int,
+    interval: int = 20,
+    is_microseconds: bool = False,
 ) -> str:
     timestamp = int.from_bytes(packet[:timestamp_size], "little")
+    if is_microseconds:
+        timestamp //= 1000
     packet = packet[timestamp_size:]
     values = []
     for i in range(8):
