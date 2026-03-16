@@ -263,14 +263,14 @@ async def movesense_control_menu_v7(device: bleak.BleakClient) -> AsyncMenu | st
         char_uuid=ecg_voltage.uuid,
         deserializer=deserialize_ecg7_packet,
         header=ecg_header_string,
-        calls_on_disconnect=calls_on_sudden_disconnect,
+        calls_on_disconnect=calls_on_disconnect,
     )
     imu_writer = BluetoothDataCollector(
         device=device,
         char_uuid=imu_meas.uuid,
         deserializer=deserialize_imu7_packet,
         header=imu_header_string,
-        calls_on_disconnect=calls_on_sudden_disconnect,
+        calls_on_disconnect=calls_on_disconnect,
     )
     hr_writer = None
 
