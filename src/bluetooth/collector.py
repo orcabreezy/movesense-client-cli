@@ -4,14 +4,14 @@ from typing import Callable
 import bleak
 
 from src.common.file_io import write_to_file
-from src.common.utils import async_print
+from src.movesense.data_chunk import DataChunk, add_interval_if_known
 
 
 @dataclass
 class BluetoothDataCollector:
     device: bleak.BleakClient
     char_uuid: str
-    deserializer: Callable[[bytes], str]
+    deserializer: Callable[[bytes], DataChunk]
     header: str
     calls_on_disconnect: list[Callable]
     # Accicentally visible as argument
@@ -24,19 +24,21 @@ class BluetoothDataCollector:
             self.char_uuid, lambda _, bytes: self.packets.append(bytes)
         )
 
-        def emergency_save():
+        def _emergency_save():
             print("device disconnected, emergency saved file")
 
-            output = self.header + ""
-            output += "".join(self.deserializer(packet) for packet in self.packets)
-            write_to_file(output, "csv", "data")
+            write_to_file(self._contents_to_file(), "csv", "data", name=self.char_uuid)
 
-        self.calls_on_disconnect.append(emergency_save)
+        self.calls_on_disconnect.append(_emergency_save)
+
+    def _contents_to_file(self) -> str:
+        chunks = [self.deserializer(packet) for packet in self.packets]
+        chunks = add_interval_if_known(chunks)
+        output = self.header + ""
+        output += "".join(c.to_csv_chunk() for c in chunks)
+        return output
 
     async def finish(self) -> str:
         await self.device.stop_notify(self.char_uuid)
-        output = self.header + ""
-        output += "".join(self.deserializer(packet) for packet in self.packets)
-
         self.is_running = False
-        return output
+        return self._contents_to_file()

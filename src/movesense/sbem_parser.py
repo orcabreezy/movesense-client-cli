@@ -1,6 +1,9 @@
 import sys
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Callable
+
+from .data_chunk import DataChunk, DataEntry, add_interval_if_known
+from .protocol import deserialize_ecg8_packet, deserialize_imu8_packet
 
 
 @dataclass
@@ -11,28 +14,6 @@ class SbemChunk:
 
     def __str__(self) -> str:
         return f"({self.id}, {self.len})"
-
-
-@dataclass
-class DataEntry:
-    timestamp: int
-    value: Any
-
-
-@dataclass
-class DataChunk:
-    timestamp: int
-    values: list[Any]
-    interval: int | None = None
-
-    def to_data_entries(self) -> list[DataEntry]:
-        if self.interval is None:
-            raise Exception("cannot convert to entries without interval knowledge")
-
-        return [
-            DataEntry(self.timestamp + i * self.interval, self.values[i])
-            for i in range(len(self.values))
-        ]
 
 
 @dataclass
@@ -59,7 +40,7 @@ def parse_sbem(file: bytes):
     while len(file) >= 2:
         chunk_id = int(file[0])
         chunk_len = int(file[1])
-        chunk_content = file[2:chunk_len]
+        chunk_content = file[2 : (2 + chunk_len)]
         chunks.append(SbemChunk(chunk_id, chunk_len, chunk_content))
         file = file[(chunk_len + 2) :]
 
@@ -74,40 +55,14 @@ def write_to_csv(filename: str, content: list[DataEntry], header: str):
 
 
 ecg_chunk = SbemChunkType(
-    id=104,
-    structure_parser=lambda b: DataChunk(
-        timestamp=int.from_bytes(b[:8], "little") // 1000,
-        values=[
-            int.from_bytes((b + 256 * a).to_bytes(2), "little", signed=True)
-            for a, b in zip(b[8::2], b[9::2])
-        ],
-    ),
+    id=108,
+    structure_parser=deserialize_ecg8_packet,
     csv_header="timestamp, ecg",
 )
 
 imu_chunk = SbemChunkType(
-    id=105,  # TODO: check this !
-    structure_parser=lambda b: DataChunk(
-        timestamp=int.from_bytes(b[0:8], "little"),
-        values=(
-            lambda vecs: [
-                (acc, gyr, mag)
-                for acc, gyr, mag in zip(vecs[::3], vecs[1::3], vecs[2::3])
-            ]
-        )(
-            (
-                lambda int16s: [
-                    (x, y, z)
-                    for x, y, z in zip(int16s[::3], int16s[1::3], int16s[2::3])
-                ]
-            )(
-                [
-                    int.from_bytes((a + 256 * b).to_bytes(2), "little", signed=True)
-                    for a, b in zip(b[8::2], b[9::2])
-                ]
-            )
-        ),
-    ),
+    id=110,  # TODO: check this !
+    structure_parser=deserialize_imu8_packet,
     csv_header="timestamp, acc-x, acc-y, acc-z, gyr-x, gyr-y, gyr-z, mag-x, mag-x, mag-z",
 )
 
@@ -128,8 +83,7 @@ def parse_chunks(chunks: list[SbemChunk]) -> dict[int, list[DataChunk]]:
     return datachunks
 
 
-if __name__ == "__main__":
-    filename = sys.argv[1]
+def parse_sbem_file(filename: str) -> None:
     if ".bin" != filename[-4:]:
         raise Exception(f'file type has to be ".bin" for {filename}')
 
@@ -143,12 +97,7 @@ if __name__ == "__main__":
     data_chunks = parse_chunks(chunks)
     for id in data_chunks:
         chunks_for_id = data_chunks[id]
-        if len(chunks_for_id) < 2:
-            continue
-        # Not accounting for hot interval changes
-        interval: int = chunks_for_id[1].timestamp - chunks_for_id[0].timestamp
-        for chunk in chunks_for_id:
-            chunk.interval = interval
+        chunks_for_id = add_interval_if_known(chunks_for_id)
 
     flat_entries = {id: [] for id in data_chunks}
     for id in data_chunks:
@@ -161,6 +110,21 @@ if __name__ == "__main__":
     # fig, ax = plt.subplots()
     # ax.plot([entry.value for entry in flat_entries[104]])
     # plt.show()
+    output_filename_base = f"{filename[:-4]}"
+    # 108 or 110 was 104 or 105
+    write_to_csv(
+        f"{output_filename_base}.ecg.csv",
+        flat_entries[108],
+        "timestamp, value",
+    )
 
-    output_filename = f"{filename[:-4]}.csv"
-    write_to_csv(output_filename, flat_entries[104], "timestamp, value")
+    write_to_csv(
+        f"{output_filename_base}.imu.csv",
+        flat_entries[110],
+        "timestamp, value",
+    )
+
+
+if __name__ == "__main__":
+    filename = sys.argv[1]
+    parse_sbem_file(filename)

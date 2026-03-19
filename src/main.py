@@ -7,6 +7,8 @@ import bleak
 from bleak.assigned_numbers import CharacteristicPropertyName
 from bleak.exc import BleakCharacteristicNotFoundError
 
+from src.movesense import sbem_parser
+
 from .bluetooth.collector import BluetoothDataCollector
 from .cli.menu import AsyncMenu, Menu
 from .common.definitions import (
@@ -20,7 +22,6 @@ from .common.definitions import (
 from .common.file_io import write_to_file, write_to_file_binary
 from .common.utils import (
     BinaryAggregator,
-    async_print,
     get_char_by_uuid,
     get_svc_by_uuid,
     parse_uint16,
@@ -109,8 +110,12 @@ async def movesense_control_menu_v8(
             if not config_field.transfer_operation:
                 break
             # TODO Time indicator
-        write_to_file_binary(binary_data, extension="bin", subfolder="data")
+        file = write_to_file_binary(binary_data, extension="bin", subfolder="data")
         await device.stop_notify(recorded_data)
+        try:
+            sbem_parser.parse_sbem_file(file)
+        except Exception as e:
+            print(f"Error parsing SBEM file: {e}")
 
     config_field = MovesenseConfigField(device, configuration.uuid)
     await config_field.initialize()

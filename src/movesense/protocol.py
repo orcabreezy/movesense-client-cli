@@ -1,29 +1,31 @@
+from .data_chunk import DataChunk
+
 ecg_header_string = "timestamp, ecg_voltage"
 imu_header_string = (
     "timestamp, acc_x, acc_y, acc_z, gyr_x, gyr_y, gyr_z, mag_x, mag_y, mag_z"
 )
 
 
-def deserialize_ecg7_packet(packet, interval=4):
-    return deserialize_ecg_packet(packet, 4, interval)
+def deserialize_ecg7_packet(packet):
+    return deserialize_ecg_packet(packet, 4)
 
 
-def deserialize_ecg8_packet(packet, interval=4):
-    return deserialize_ecg_packet(packet, 8, interval, is_microseconds=True)
+def deserialize_ecg8_packet(packet):
+    return deserialize_ecg_packet(packet, 8, is_microseconds=True)
 
 
-def deserialize_imu7_packet(packet, interval=20):
-    return deserialize_imu_packet(packet, 4, interval)
+def deserialize_imu7_packet(packet):
+    return deserialize_imu_packet(packet, 4)
 
 
-def deserialize_imu8_packet(packet, interval=20):
-    return deserialize_imu_packet(packet, 8, interval, is_microseconds=True)
+def deserialize_imu8_packet(packet):
+    return deserialize_imu_packet(packet, 8, is_microseconds=True)
 
 
 # TODO remove hard code
 def deserialize_ecg_packet(
     packet: bytes, timestamp_size: int, interval: int = 4, is_microseconds: bool = False
-) -> str:
+) -> DataChunk:
     timestamp = int.from_bytes(packet[:timestamp_size], "little")
     if is_microseconds:
         timestamp //= 1000
@@ -32,11 +34,7 @@ def deserialize_ecg_packet(
     values = []
     for i in range(16):
         values.append(int.from_bytes(packet[2 * i : 2 * i + 2], "little", signed=True))
-    output = ""
-    for i in range(16):
-        output += f"\n{timestamp + i * interval}, {values[i]}"
-
-    return output
+    return DataChunk(timestamp=timestamp, values=values, interval=interval)
 
 
 # TODO remove hard code
@@ -45,7 +43,7 @@ def deserialize_imu_packet(
     timestamp_size: int,
     interval: int = 20,
     is_microseconds: bool = False,
-) -> str:
+) -> DataChunk:
     timestamp = int.from_bytes(packet[:timestamp_size], "little")
     if is_microseconds:
         timestamp //= 1000
@@ -76,8 +74,4 @@ def deserialize_imu_packet(
         combined = accs + gyrs + mags
         values.append(", ".join(str(c) for c in combined))
 
-    output = ""
-    for i in range(8):
-        output += f"{timestamp + i * interval}, {values[i]}\n"
-
-    return output
+    return DataChunk(timestamp=timestamp, values=values, interval=interval)
