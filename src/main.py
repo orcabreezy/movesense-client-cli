@@ -376,7 +376,7 @@ async def main_async() -> None:
             f()
 
     while True:
-        devices = [dev for dev in await ble_scan(2)]
+        devices = [dev for dev in await ble_scan(5)]
         if devices is None:
             print("error: no scan results")
             return
@@ -393,10 +393,11 @@ async def main_async() -> None:
     device = bleak.BleakClient(devices[dev_id], disconnected_callback=on_disconnect)
     client = MovesenseClient(device)
 
-    print(f"connecting to {device.name} which was {devices[dev_id]}")
-    if not await client.connect():
-        print(f"error connecting to {device.name}")
-        return
+    print(f"connecting to device with address {devices[dev_id]}")
+    await client.connect()
+    # if not await client.connect():
+    #     print(f"error connecting to {device.name}")
+    #     return
 
     # Device Interaction
     async def choose_movesense_menu():
