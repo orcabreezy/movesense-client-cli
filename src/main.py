@@ -1,7 +1,4 @@
 import asyncio
-from calendar import c
-from pathlib import UnsupportedOperation
-from sqlite3 import Binary
 
 import bleak
 from bleak.assigned_numbers import CharacteristicPropertyName
