@@ -55,13 +55,13 @@ def write_to_csv(filename: str, content: list[DataEntry], header: str):
 
 
 ecg_chunk = SbemChunkType(
-    id=108,
+    id=104,
     structure_parser=deserialize_ecg8_packet,
     csv_header="timestamp, ecg",
 )
 
 imu_chunk = SbemChunkType(
-    id=110,  # TODO: check this !
+    id=105,
     structure_parser=deserialize_imu8_packet,
     csv_header="timestamp, acc-x, acc-y, acc-z, gyr-x, gyr-y, gyr-z, mag-x, mag-x, mag-z",
 )
@@ -114,13 +114,13 @@ def parse_sbem_file(filename: str) -> None:
     # 108 or 110 was 104 or 105
     write_to_csv(
         f"{output_filename_base}.ecg.csv",
-        flat_entries[108],
+        flat_entries[ecg_chunk.id],
         "timestamp, value",
     )
 
     write_to_csv(
         f"{output_filename_base}.imu.csv",
-        flat_entries[110],
+        flat_entries[imu_chunk.id],
         "timestamp, value",
     )
 
